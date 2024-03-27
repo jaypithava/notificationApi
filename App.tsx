@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {View, Button, Alert} from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import axios from 'axios';
@@ -8,6 +8,7 @@ const App = () => {
   const [deviceToken, setDeviceToken] = useState('');
 
   useEffect(() => {
+    // Request permission for notifications and get the device token
     const requestUserPermission = async () => {
       try {
         await messaging().requestPermission();
@@ -18,10 +19,19 @@ const App = () => {
         // Handle foreground notifications
         messaging().onMessage(async remoteMessage => {
           console.log('Foreground notification:', remoteMessage);
-          PushNotification.localNotification({
-            title: remoteMessage.notification.title || 'Notification',
-            message: remoteMessage.notification.body || 'Notification body',
-          });
+          // Check if remoteMessage.notification exists before accessing its properties
+          if (remoteMessage.notification) {
+            PushNotification.localNotification({
+              title: remoteMessage.notification.title || 'Notification',
+              message: remoteMessage.notification.body || 'Notification body',
+            });
+          } else {
+            // Handle the case where remoteMessage.notification is undefined
+            console.warn(
+              'Foreground notification received without notification payload:',
+              remoteMessage,
+            );
+          }
         });
       } catch (error) {
         console.error('Error getting device token:', error);
@@ -31,28 +41,36 @@ const App = () => {
     requestUserPermission();
   }, []);
 
-  const sendNotification = async notificationData => {
+  const sendNotification = async (notificationData: {
+    to: any;
+    title: any;
+    body: any;
+    customData: any;
+  }) => {
     try {
       // FCM endpoint URL
       const apiUrl = 'https://fcm.googleapis.com/fcm/send';
 
+      // Authorization header with your FCM server key
       const headers = {
         'Content-Type': 'application/json',
-        Authorization:
-          'key=AAAA7SZ-H4U:APA91bGEZDV2tCsN4u4yU1PfwzO2AtWBd4CEAON3SiS78c10DP0PbIXWdEiWXfpPg1eos6JiR6EDu0fje1jVj_t0HYy_CMk6UYOj0uxVy4Wz_rwY7lcBlwrU7XSExxd7U65Rp9VdovS4', // Replace YOUR_SERVER_KEY with your actual FCM server key
+        Authorization: 'key=YOUR_SERVER_KEY', // Replace YOUR_SERVER_KEY with your actual FCM server key
       };
 
+      // Payload for the notification
       const data = {
-        to: notificationData.to,
+        to: notificationData.to, // Device token or topic to send the notification
         notification: {
           title: notificationData.title,
           body: notificationData.body,
         },
-        data: notificationData.customData,
+        data: notificationData.customData, // Optional custom data to include in the notification
       };
 
+      // Make the POST request to FCM API
       const response = await axios.post(apiUrl, data, {headers});
 
+      // Log the relevant information from the response
       console.log('Notification response:', {
         multicast_id: response.data.multicast_id,
         success: response.data.success,
@@ -82,14 +100,17 @@ const App = () => {
     }
 
     const notificationData = {
-      to: deviceToken,
+      to: deviceToken, // Use the device token obtained from Firebase Messaging
       title: 'New Message',
       body: 'You have a new message!',
       customData: {
+        // Optional custom data to include in the notification
         sender: 'John Doe',
         message: 'Hello from React Native!',
       },
     };
+
+    // Call the sendNotification function with the notification data
     sendNotification(notificationData);
   };
 
